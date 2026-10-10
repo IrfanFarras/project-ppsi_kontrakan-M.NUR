@@ -1,0 +1,236 @@
+// Prisma schema — Rental Management System
+// Phase 5: Adding Order + User Auth extension
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  OWNER
+  TENANT
+}
+
+enum OrderStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PropertyStatus {
+  AVAILABLE
+  OCCUPIED
+  UNDER_MAINTENANCE
+  RESERVED
+  INACTIVE
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  LATE
+  UNPAID
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  E_WALLET
+  OTHER
+}
+
+enum MaintenanceStatus {
+  REPORTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(OWNER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reportedMaintenances Maintenance[] @relation("MaintenanceReportedBy")
+  orders               Order[]
+
+  @@map("users")
+}
+
+model Order {
+  id              Int         @id @default(autoincrement())
+  userId          Int?        // Optional jika menggunakan guest checkout
+  propertyId      Int
+  
+  // Snapshot data calon penyewa
+  tenantFullName  String
+  tenantPhone     String
+  tenantEmail     String
+  
+  requestedStartDate DateTime
+  requestedEndDate   DateTime
+  rentAmountSnapshot Decimal  @db.Decimal(12, 2)
+  
+  status          OrderStatus @default(PENDING)
+  rejectionReason String?     @db.Text
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user            User?       @relation(fields: [userId], references: [id])
+  property        Property    @relation(fields: [propertyId], references: [id])
+
+  @@index([userId])
+  @@index([propertyId])
+  @@map("orders")
+}
+
+model Property {
+  id        Int            @id @default(autoincrement())
+  code      String         @unique 
+  name      String
+  address   String         @db.Text
+  rentAmount Decimal        @db.Decimal(12, 2) @default(0.00)
+  status    PropertyStatus @default(AVAILABLE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  contracts    Contract[]
+  maintenances Maintenance[]
+  expenses     Expense[]
+  parkings     Parking[]
+  orders       Order[]
+
+  @@map("properties")
+}
+
+model Tenant {
+  id             Int      @id @default(autoincrement())
+  fullName       String
+  phone          String
+  email          String   @unique
+  identityNumber String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  contracts Contract[]
+  parkings  Parking[]
+
+  @@map("tenants")
+}
+
+model Contract {
+  id         Int            @id @default(autoincrement())
+  propertyId Int
+  tenantId   Int
+  startDate  DateTime
+  endDate    DateTime
+  rentAmount Decimal        @db.Decimal(12, 2)
+  status     ContractStatus @default(ACTIVE)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  previousContractId Int?      @unique
+  previousContract   Contract? @relation("ContractRenewal", fields: [previousContractId], references: [id])
+  renewedInto        Contract? @relation("ContractRenewal")
+
+  property Property  @relation(fields: [propertyId], references: [id])
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  payments Payment[]
+
+  @@index([propertyId, status])
+  @@index([tenantId])
+  @@map("contracts")
+}
+
+model Payment {
+  id          Int            @id @default(autoincrement())
+  contractId  Int
+  amount      Decimal        @db.Decimal(12, 2)
+  paymentDate DateTime
+  method      PaymentMethod? 
+  status      PaymentStatus  @default(PAID)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id])
+
+  @@index([contractId])
+  @@map("payments")
+}
+
+model Maintenance {
+  id           Int               @id @default(autoincrement())
+  propertyId   Int
+  reportedById Int?
+  description  String            @db.Text
+  status       MaintenanceStatus @default(REPORTED)
+  reportedAt   DateTime          @default(now())
+  completedAt  DateTime?
+  updatedAt    DateTime          @updatedAt
+
+  property   Property  @relation(fields: [propertyId], references: [id])
+  reportedBy User?     @relation("MaintenanceReportedBy", fields: [reportedById], references: [id])
+  expenses   Expense[]
+
+  @@index([propertyId])
+  @@map("maintenances")
+}
+
+model Expense {
+  id            Int      @id @default(autoincrement())
+  propertyId    Int
+  maintenanceId Int? 
+  category      String
+  amount        Decimal  @db.Decimal(12, 2)
+  expenseDate   DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  property    Property     @relation(fields: [propertyId], references: [id])
+  maintenance Maintenance? @relation(fields: [maintenanceId], references: [id])
+
+  @@index([propertyId])
+  @@index([maintenanceId])
+  @@map("expenses")
+}
+
+model Parking {
+  id          Int      @id @default(autoincrement())
+  propertyId  Int?
+  tenantId    Int?
+  vehicleType String?
+  plateNumber String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  property Property? @relation(fields: [propertyId], references: [id])
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id])
+
+  @@index([propertyId])
+  @@index([tenantId])
+  @@map("parkings")
+}

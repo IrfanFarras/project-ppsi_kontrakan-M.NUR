@@ -1,0 +1,10 @@
+{
+  "name": "@rental/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "dependencies": {
+    "@rental/types": "*"
+  }
+}

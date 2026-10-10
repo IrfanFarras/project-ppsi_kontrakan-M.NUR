@@ -1,0 +1,21 @@
+{
+  "name": "rental-management-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:admin\"",
+    "build:admin": "npm run build --workspace=apps/admin",
+    "build:backend": "npm run build --workspace=apps/backend",
+    "prisma:migrate:dev": "npm run prisma:migrate:dev --workspace=apps/backend",
+    "prisma:migrate:deploy": "npm run prisma:migrate:deploy --workspace=apps/backend",
+    "prisma:generate": "npm run prisma:generate --workspace=apps/backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
